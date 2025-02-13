@@ -2,25 +2,44 @@ using NUnit.Framework;
 using System.Collections.Generic;
 using Unity.VisualScripting;
 using UnityEngine;
+using UnityEngine.UI;
 
 public class TrackDrawer : MonoBehaviour
 {
 
-    public LineRenderer lineRenderer;
+    public LineRenderer lineRendererPrefab;
     public float minWaypointDistance; //Distance between the waypoints
+    
+    public List<Car> cars; //List of cars on the screen
+    public List<GameObject> goals;
 
-    public Car selectedCar;
-    bool isDrawing;
+    private Car selectedCar;
+    private bool isDrawing;
+
+    private Dictionary<Car, List<Vector3>> carsWaypoints = new Dictionary<Car, List<Vector3>>();
+    private Dictionary<Car, LineRenderer> trackDrawers = new Dictionary<Car, LineRenderer>();
+    private Dictionary<Car, bool> isAtGoal = new Dictionary<Car, bool>();
+
+    private bool allGoal;
 
 
-    List<Vector3> wayPoints = new List<Vector3>();
+    public GameObject StartButton; //Start Button
 
+
+    public GameObject goalPoint;
+
+
+
+    
     private void Start()
     {
-        selectedCar = GetComponentInParent<Car>();
+        StartButton.SetActive(false);
 
-        lineRenderer.positionCount = 0;
-        lineRenderer.startColor = selectedCar.lineColor;
+        foreach(Car car in cars)
+        {
+            isAtGoal[car] = false;
+        }
+
     }
 
 
@@ -28,96 +47,187 @@ public class TrackDrawer : MonoBehaviour
     void Update()
     {
 
-        if (Input.GetMouseButtonDown(0) && carisSelected())
+        if (Input.GetMouseButtonDown(0))
         {
-            StartDrawing(); //renews the List of wayPoints. New drawing.
-            
-        } 
-        else if (Input.GetMouseButtonUp(0))
+            SelectCarAndDraw();          
+        }
+
+        if (isDrawing && Input.GetMouseButton(0)) 
         {
-            //
+            DrawLine();
+        }
+
+        if (Input.GetMouseButtonUp(0) && !isDrawing)
+        {
             EndDrawing();
         } 
-        else 
+
+        if (isDrawing && selectedCar != null)
         {
-            //If the trackdrawer does not reach the goal, it will yeah.
-            //can be goal OnTrigger
-            wayPoints.Clear();
-            lineRenderer.positionCount = 0;
+            List<Vector3> waypoints = carsWaypoints[selectedCar];
+
+            if (waypoints.Count > 0&& Vector3.Distance((waypoints[waypoints.Count-1]), selectedCar.goalObject.transform.position) <= 1f){
+                EndDrawing();
+            }
+        }
+
+        for (int i = 0; i < isAtGoal.Count; i++)
+        {
+            
+
         }
 
     }
 
 
+    void SelectCarAndDraw()
+    {
+        Vector3 mousePos = GetMousePosition();
+        RaycastHit2D hit = Physics2D.Raycast(mousePos, Vector2.zero);
+
+        if(hit.collider != null)
+        {
+            Car car = hit.collider.GetComponent<Car>();
+
+            if (car != null)
+            {
+                selectedCar = car;
+
+                if (!carsWaypoints.ContainsKey(selectedCar))
+                {
+                    carsWaypoints[selectedCar] = new List<Vector3>();
+                }
+
+                if (!trackDrawers.ContainsKey(selectedCar))
+                {
+                    LineRenderer lineRenderer = Instantiate(lineRendererPrefab, transform);
+                    lineRenderer.startColor = selectedCar.lineColor;
+                    lineRenderer.endColor = selectedCar.lineColor;
+                    lineRenderer.useWorldSpace = true;
+
+                    trackDrawers[selectedCar] = lineRenderer;
+
+
+                }
+
+
+                List<Vector3> waypoints = carsWaypoints[selectedCar]; //select the list that you want the waypoints to be added
+                waypoints.Clear();
+                waypoints.Add(selectedCar.transform.position);
+
+                LineRenderer currentLine = trackDrawers[selectedCar]; //select the current colored line you are usin
+                currentLine.positionCount = 0;
+
+                selectedCar.SetWaypoints(waypoints); //send it to the car
+                StartDrawing();
+            }
+
+        }
+
+
+    }
+
     void StartDrawing()
     {
-        Debug.Log("starting?");
-        wayPoints.Clear();
-        lineRenderer.positionCount = 0;
+        if (selectedCar == null) return;
+
+        LineRenderer currentDrawer = trackDrawers[selectedCar];
+        currentDrawer.positionCount = 1;
+        currentDrawer.SetPosition(0, selectedCar.transform.position); //start drawin
+
         isDrawing = true;
 
     }
 
     void EndDrawing()
     {
-        wayPoints.Clear();
-        lineRenderer.positionCount = 0;
-        isDrawing = false;
-        //if the end of line collides/within the goal point, then isAtGoal = true;
-        //wayPoints[wayPoints.Count-1] 
 
+        if (selectedCar == null) return;
+
+        List<Vector3> waypoints = carsWaypoints[selectedCar];
+
+        if(waypoints.Count > 0)
+        {
+            if (Vector3.Distance(waypoints[waypoints.Count - 1], selectedCar.goalObject.transform.position) <= 1f)
+            {
+                isDrawing = false;
+                CheckAllCarsAtGoal();
+                isDrawing = false;
+            }
+
+            else
+            {
+                isAtGoal[selectedCar] = false;
+                StartButton.SetActive(false);
+                waypoints.Clear();
+
+                LineRenderer currentDrawer = trackDrawers[selectedCar];
+                currentDrawer.positionCount = 0;
+                isDrawing = false;
+            }
+
+        }   
 
     }
 
 
-    private void OnMouseDrag()
+    void DrawLine()
     {
-        if (isDrawing)
-        {   
-            Debug.Log("drawin");
-            Vector3 mousePos = GetMousePosition();
 
-            if (wayPoints.Count == 0 || Vector3.Distance(mousePos, wayPoints[wayPoints.Count - 1]) > minWaypointDistance)
-            {
-                wayPoints.Add(mousePos);
+        Vector3 mousePos = GetMousePosition();
+        mousePos.z = 0;
+        mousePos.x += 0.1f;
 
-                Vector3 point = new Vector3(mousePos.x, mousePos.y, 0f);
-                lineRenderer.positionCount = wayPoints.Count;
-                lineRenderer.SetPosition(wayPoints.Count - 1, point);
-
-            }
-        }
+        List<Vector3> waypoints = carsWaypoints[selectedCar];
         
 
-    }
+        float distance = Vector3.Distance(mousePos, waypoints[waypoints.Count - 1]);
 
-    bool carisSelected()
-    {
-
-        //if the input.mouseposition => GetMousePosition hits the collider of selected car, then it will return true;
-        Vector3 mp = GetMousePosition();
-
-        if (selectedCar.Carcollider.OverlapPoint(mp))
+        if (distance > minWaypointDistance)
         {
-            
-            return true;
-        }
-        else
-        {
-            return false;
+            waypoints.Add(mousePos);
+            selectedCar.SetWaypoints(new List<Vector3>(waypoints));
+
+            LineRenderer currentDrawer = trackDrawers[selectedCar];
+            currentDrawer.positionCount = waypoints.Count;
+            currentDrawer.SetPosition(waypoints.Count - 1, mousePos);
+
         }
     }
-
-
 
     Vector3 GetMousePosition()
     {
         Vector3 mouseScreenPos = Input.mousePosition;
-        mouseScreenPos.z = -10f;
+        mouseScreenPos.z = 0;
 
         Vector3 worldPos = Camera.main.ScreenToWorldPoint(mouseScreenPos);
 
         return worldPos;
     }
+
+    public void Onclick()
+    {
+        foreach(Car car in cars)
+        {
+            car.startMoving();
+        }
+    }
+
+    void CheckAllCarsAtGoal()
+    {
+        foreach(Car car in cars)
+        {
+            if (!isAtGoal[car])
+            {
+                StartButton.SetActive(false);
+                return;
+            }
+        }
+
+        StartButton.SetActive(true);
+
+    }
+
+
 
 }
