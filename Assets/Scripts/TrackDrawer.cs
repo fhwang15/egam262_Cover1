@@ -26,7 +26,7 @@ public class TrackDrawer : MonoBehaviour
     public GameObject StartButton; //Start Button
 
 
-    public GameObject goalPoint;
+    //public GameObject goalPoint;
 
 
 
@@ -71,11 +71,6 @@ public class TrackDrawer : MonoBehaviour
             }
         }
 
-        for (int i = 0; i < isAtGoal.Count; i++)
-        {
-            
-
-        }
 
     }
 
@@ -146,29 +141,28 @@ public class TrackDrawer : MonoBehaviour
 
         List<Vector3> waypoints = carsWaypoints[selectedCar];
 
-        if(waypoints.Count > 0)
+        if (waypoints.Count > 0)
         {
-            if (Vector3.Distance(waypoints[waypoints.Count - 1], selectedCar.goalObject.transform.position) <= 1f)
+            Vector3 lastpoint = waypoints[waypoints.Count - 1];
+            bool AnyGoal = false;
+
+            foreach (GameObject goal in goals)
             {
-                isDrawing = false;
-                CheckAllCarsAtGoal();
-                isDrawing = false;
+                if (Vector3.Distance(lastpoint, goal.transform.position) <= 1f)
+                {
+                    AnyGoal = true;
+                    break;
+                }
             }
 
-            else
-            {
-                isAtGoal[selectedCar] = false;
-                StartButton.SetActive(false);
-                waypoints.Clear();
-
-                LineRenderer currentDrawer = trackDrawers[selectedCar];
-                currentDrawer.positionCount = 0;
-                isDrawing = false;
-            }
-
-        }   
+            isAtGoal[selectedCar] = AnyGoal;
+            CheckAllCarsAtGoal();
+        }
+        isDrawing = false;
 
     }
+
+        
 
 
     void DrawLine()
@@ -215,16 +209,27 @@ public class TrackDrawer : MonoBehaviour
 
     void CheckAllCarsAtGoal()
     {
+
+        bool isAtCorrectGoal = true;
+
         foreach(Car car in cars)
         {
             if (!isAtGoal[car])
             {
-                StartButton.SetActive(false);
+                isAtCorrectGoal = false;
                 return;
             }
         }
 
-        StartButton.SetActive(true);
+
+        if (isAtCorrectGoal)
+        {
+            StartButton.SetActive(true);
+        }
+        else
+        {
+            StartButton.SetActive(false);
+        }
 
     }
 

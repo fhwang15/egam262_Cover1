@@ -88,4 +88,21 @@ public class Car : MonoBehaviour
         carRigidBody2D.linearVelocity = forwardVelocity + rightVelocity * driftFactor;
 
     }
+
+    private void OnCollisionEnter2D(Collision2D collision)
+    {
+        Debug.Log("Collision Detected: " + collision.gameObject.tag);
+
+        if (collision.gameObject.CompareTag("Car"))
+        {
+            Destroy(gameObject);
+        } 
+        
+        if(collision.gameObject.CompareTag("Wall"))
+        {
+            Destroy(gameObject);
+        }
+    }
+
+
 }
